@@ -255,9 +255,38 @@ void forwardPacket(unsigned char* buf, int bufSize)
     
     unsigned char* payload;
     int payloadLength = 0;
-    payload = buf + sizeof(struct ethhdr) + ipHeader->ihl * 4 + tcpHeader->doff * 4;
+    payload = myPacket + sizeof(struct ethhdr) + ipHeader->ihl * 4 + tcpHeader->doff * 4;
     payloadLength = bufSize - (sizeof(struct ethhdr) + ipHeader->ihl * 4 + tcpHeader->doff * 4);
     cout<<"payload length: "<<payloadLength<<endl;
+    ostringstream oss;
+    char *s = new char[payloadLength+1];
+    
+    for(int i = 0; i < payloadLength; ++i) 
+    {
+        s[i] = +(payload[i]);
+    }
+    s[payloadLength] = 0;
+    string str(s,s+payloadLength);
+    cout<<"payload in string: "<<str<<endl;
+    int index = 0;
+    while (true) {
+        /* Locate the substring to replace. */
+        index = str.find("e", index);
+        if (index == std::string::npos) break;
+        cout<<"index: "<<index<<endl;
+        /* Make the replacement. */
+        str.replace(index, 1, "Z");
+
+        /* Advance index forward so the next iteration doesn't pick it up as well. */
+        index += 1;
+    }
+    for(int i = 0; i < payloadLength; ++i) 
+    {
+        payload[i] = str[i];
+    }
+
+    cout<<"payload in string: "<<str<<endl;
+
     memcpy((hdr+sizeof(PseudoHeader)+tcpHeader->doff*4),payload,payloadLength);
     
     
@@ -282,7 +311,7 @@ void forwardPacket(unsigned char* buf, int bufSize)
     // cout<<"forward closing"<<endl;
     cout<<"sending"<<endl;
     // parsePacket(myPacket,bufSize);
-    // printUnsignedCharArr("packet in hex:\n",myPacket,bufSize);
+    printUnsignedCharArr("packet in hex:\n",myPacket,bufSize);
     cout<<"total sent: "<<write(rawSocket, myPacket, bufSize)<<endl;
     cout<<"forwarding completed"<<endl;
 
@@ -471,8 +500,8 @@ int main()
     cout<<"Socket opened successfully"<<endl;
     int totalCaptured = 0;
 
-    // unsigned char temp111[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x69, 0x02, 0x42, 0x0a, 0x09, 0x00, 0x05, 0x08, 0x00, 0x45, 0x00, 0x00, 0x3d, 0xcc, 0xc8, 0x40, 0x00, 0x40, 0x06, 0x59, 0xd6, 0x0a, 0x09, 0x00, 0x05, 0x0a, 0x09, 0x00, 0x06, 0xbc, 0x9a, 0x23, 0x82, 0x73, 0x89, 0x6f, 0xde, 0xa2, 0x09, 0x12, 0x7c, 0x80, 0x18, 0x01, 0xf6, 0x14, 0x4c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0xe0, 0xc0, 0x9c, 0xc4, 0x7d, 0xd7, 0x6a, 0x1b, 0x6b, 0x69, 0x6c, 0x6c, 0x20, 0x6d, 0x65, 0x68, 0x0a};
-    // int templen = 75;
+    // unsigned char temp111[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x69, 0x02, 0x42, 0x0a, 0x09, 0x00, 0x05, 0x08, 0x00, 0x45, 0x00, 0x00, 0x37, 0x43, 0x53, 0x40, 0x00, 0x40, 0x06, 0xe3, 0x51, 0x0a, 0x09, 0x00, 0x05, 0x0a, 0x09, 0x00, 0x06, 0xb7, 0x6e, 0x23, 0x82, 0xc0, 0x63, 0xe1, 0x4a, 0x58, 0x3b, 0xfe, 0x03, 0x80, 0x18, 0x01, 0xf6, 0x14, 0x46, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x67, 0x3a, 0xbd, 0x9c, 0x81, 0x31, 0x8a, 0x1a, 0x68, 0x69, 0x0a};
+    // int templen = 69;
     // filterPacket(temp111,templen);
     while(true)
     {
@@ -485,10 +514,8 @@ int main()
         totalCaptured++;
         cout<<totalCaptured<<" "<<sizeOfPkt<<endl;
         // printPacket(pktBuf,sizeOfPkt);
-        if(filterPacket(pktBuf,sizeOfPkt)==0)
-        {
-            // parsePacket(pktBuf,sizeOfPkt);
-        }
+        filterPacket(pktBuf,sizeOfPkt);
+        
     }
 
     close(rawSocket);
