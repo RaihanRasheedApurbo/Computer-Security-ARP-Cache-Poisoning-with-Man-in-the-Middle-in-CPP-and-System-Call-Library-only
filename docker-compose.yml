@@ -7,6 +7,9 @@ services:
         tty: true
         cap_add:
                 - ALL
+        privileged: true
+        volumes:
+                - ./volumes:/volumes
         networks:
             net-10.9.0.0:
                 ipv4_address: 10.9.0.5

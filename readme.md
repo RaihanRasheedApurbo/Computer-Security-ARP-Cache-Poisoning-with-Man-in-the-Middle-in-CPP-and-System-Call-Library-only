@@ -11,4 +11,8 @@ In order to poison ARP cache of victim I wrote spoofer (volumes/spoofer.cpp). Th
 I have also implemented sniffer in python (volumes/pySniffer.py) as it helped me to debug my c++ implmentation of sniffer (volumes/sniffer.cpp). Unlike my python sniffer implmenetation my sniffer can not hold tcp connection for long. I couldn't solve this bug. I tried a lot. Sorry.
 
 
+I also implemented a trivial spoofDefender (volumes/defendSpoofing). This program sniffs only arp packets and check whether Host 2's MAC address matches with the known MAC address by Host1 of Host2.
+
 bash scripts were used for my convenience when I was coding. Feel free to use those. I also took help from wireshark to understand frame that I should send and that I was sending.
+
+
