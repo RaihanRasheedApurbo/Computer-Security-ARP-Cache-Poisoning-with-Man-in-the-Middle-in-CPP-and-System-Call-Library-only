@@ -10,3 +10,5 @@ volumes/defendSpoofing
 volumes/hexDump
 volumes/pyTestPacket.py
 volumes/spoofer
+checksumTest
+clipboard

